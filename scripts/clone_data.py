@@ -16,10 +16,12 @@ def getSubDirectoriesWithPattern(root_directory, pattern):
     of immediate sub-directories with names which match the pattern.
 
     Input:
+    ------
     root_directory (str): absolute path to the root directory
     pattern (str): regular expression to filter directory names
 
     Output:
+    -------
     subdirs (list): List of absolute paths to sub-directories
     """
     subdirs = [f.path for f in os.scandir(root_directory) if f.is_dir() and re.match(pattern=pattern, string=f.name)]
@@ -32,10 +34,12 @@ def getFilesWithPattern(root_directory, pattern):
     of files inside the directory with names which match the pattern.
 
     Input:
+    ------
     root_directory (str): absolute path to the root directory
     pattern (str): regular expression to filter file names
 
     Output:
+    -------
     files (list): List of absolute paths to files
     """
     files = [f.path for f in os.scandir(root_directory) if f.is_file() and re.match(pattern=pattern, string=f.name)]
@@ -50,6 +54,7 @@ def flattenAndCopyFiles(orig_path, new_path, patterns):
     a list of regular expressions.
 
     Input:
+    ------
     orig_path (str): absolute path to the root directory containing the files
                      and folders
     new_path (str):  absolute path to the new directory to dump the files
