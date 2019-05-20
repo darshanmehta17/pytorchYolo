@@ -21,8 +21,4 @@ LPROP_LAYERS = 'layers'
 LPROP_SIZE = 'size'
 LPROP_ANCHORS = 'anchors'
 LPROP_FROM = 'from'
-
-
-
-
-
+LPROP_MASK = 'mask'

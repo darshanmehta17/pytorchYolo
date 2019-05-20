@@ -1,13 +1,9 @@
 from __future__ import division
 
-from constant import *
-from layers import EmptyLayer
-
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.autograd import Variable
-import numpy as np
+
+from constants import *
+from layers import EmptyLayer, DetectionLayer
 
 
 def parse_cfg(cfgfile):
@@ -40,7 +36,7 @@ def parse_cfg(cfgfile):
             if len(block) != 0:  # If block is not empty, implies it is storing values of previous block.
                 blocks.append(block)  # add it the blocks list
                 block = {}  # re-init the block
-            block["type"] = line[1:-1].rstrip()
+            block[LPROP_TYPE] = line[1:-1].rstrip()
         else:
             key, value = line.split("=")
             block[key.rstrip()] = value.lstrip()
@@ -60,7 +56,7 @@ def create_network(blocks):
     net_info = blocks[0]  # Capture the block containing network parameters
 
     # check if the net_info captured is correct
-    assert net_info[LPROP_TYPE] != LAYER_NET, "Could not find the locate the network info layer. " \
+    assert net_info[LPROP_TYPE] == LAYER_NET, "Could not find the locate the network info layer. " \
                                               "Please check the cfg file."
 
     module_list = nn.ModuleList()
@@ -75,7 +71,7 @@ def create_network(blocks):
 
         if block[LPROP_TYPE] == LAYER_CONVOLUTIONAL:
             activation_type = block[LPROP_ACTIVATION]
-            filters= int(block[LPROP_FILTERS])
+            filters = int(block[LPROP_FILTERS])
             padding = int(block[LPROP_PAD])
             kernel_size = int(block[LPROP_SIZE])
             stride = int(block[LPROP_STRIDE])
@@ -139,5 +135,36 @@ def create_network(blocks):
             if end < 0:
                 filters = output_filters[index + start] + output_filters[index + end]
             else:
-                filters= output_filters[index + start]
+                filters = output_filters[index + start]
 
+        elif block[LPROP_TYPE] == LAYER_SHORTCUT:
+            # shortcut corresponds to skip connection
+            shortcut = EmptyLayer()
+            module.add_module("shortcut_{}".format(index), shortcut)
+
+        elif block[LPROP_TYPE] == LAYER_YOLO:
+            mask = block[LPROP_MASK].split(",")
+            mask = [int(x) for x in mask]
+
+            anchors = block[LPROP_ANCHORS].split(",")
+            anchors = [int(a) for a in anchors]
+            anchors = [(anchors[i], anchors[i + 1]) for i in range(0, len(anchors), 2)]
+            anchors = [anchors[i] for i in mask]
+
+            detection = DetectionLayer(anchors)
+            module.add_module("Detection_{}".format(index), detection)
+
+        else:
+            assert False, "Unknown layer encountered"
+
+        module_list.append(module)
+        prev_filters = filters
+        output_filters.append(filters)
+
+    return net_info, module_list
+
+
+# Test code
+if __name__ == '__main__':
+    blocks = parse_cfg("./cfg/yolov3-voc.cfg")
+    print(create_network(blocks))
