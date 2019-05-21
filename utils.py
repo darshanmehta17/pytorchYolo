@@ -64,6 +64,7 @@ def create_network(blocks):
     module_list = nn.ModuleList()
     prev_filters = 3  # For the 3 channels of an RGB image
     output_filters = []  # to keep track of the output dimensions of each layer
+    filters = None
 
     # Begin the processing of the remaining blocks of the network.
     # Check the type of the module and create a pytorch implementation of it.
@@ -151,7 +152,7 @@ def create_network(blocks):
             anchors = block[LPROP_ANCHORS].split(",")
             anchors = [int(a) for a in anchors]
             anchors = [(anchors[i], anchors[i + 1]) for i in range(0, len(anchors), 2)]
-            anchors = [anchors[i] for i in mask]
+            anchors = [anchors[i] for i in mask]  # pick the anchors listed in the mask
 
             detection = DetectionLayer(anchors)
             module.add_module("Detection_{}".format(index), detection)
