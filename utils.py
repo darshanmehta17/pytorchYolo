@@ -1,5 +1,7 @@
 from __future__ import division
 
+import numpy as np
+import torch
 import torch.nn as nn
 
 from constants import *
@@ -158,10 +160,77 @@ def create_network(blocks):
             assert False, "Unknown layer encountered"
 
         module_list.append(module)
-        prev_filters = filters
+        prev_filters = filters  # TODO: Improve the tracking of filters value
         output_filters.append(filters)
 
     return net_info, module_list
+
+
+def transform_predictions(predictions, input_dim, anchors, num_classes, gpu=False):
+    """
+    Since the outputs produced by the YOLO layer are tedious to transform, we first flatten
+    the predictions into a 2D array where each 1D array corresponds to a bounding box.
+
+    Next, we offset the center coordinates by the grid offsets and log transform the
+    dimensions of the bounding box by the size of the anchor. We also apply sigmoid
+    to the confidence score and the class scores.
+
+    :param predictions: The raw predictions from the YOLO layer.
+    :param input_dim: The dimension of the input image. Assumes that the image is square.
+    :param anchors: A list of anchors used by the detection layer
+    :param num_classes: Number of output classes to be predicted
+    :param gpu: Boolean flag to denote if compute must be on CPU (False) or GPU(True). Default is False.
+    :return predictions: 2D array consisting of transformed bounding box predictions.
+    """
+    # TODO: Optimize this function, understand the anchors part and improve documentation.
+    batch_size = predictions.size(0)
+    stride = input_dim // predictions.size(2)
+    grid_size = input_dim // stride
+    bbox_attrs = 5 + num_classes  # (x, y, w, h, conf.)
+    num_anchors = len(anchors)
+
+    # The anchors are expressed as a factor of the stride, so we get the original dimensions
+    anchors = [(anchor[0] / stride, anchor[1] / stride) for anchor in anchors]
+
+    predictions = predictions.view(batch_size, bbox_attrs * num_anchors, grid_size * grid_size)
+    predictions = predictions.transpose(1, 2).contiguous()  # the dimensions 1 & 2 are swapped
+    predictions = predictions.view(batch_size, grid_size * grid_size * num_anchors * bbox_attrs)
+
+    # Now apply sigmoid to the center coordinates, confidence score and the class scores
+    predictions[:, :, 0] = torch.sigmoid(predictions[:, :, 0])  # x value
+    predictions[:, :, 1] = torch.sigmoid(predictions[:, :, 1])  # y value
+    predictions[:, :, 4] = torch.sigmoid(predictions[:, :, 4])  # confidence score
+    predictions[:, :, 5:(5 + num_classes)] = torch.sigmoid(predictions[:, :, 5:(5 + num_classes)])  # class scores
+
+    # Create and add the grid offsets to each of the center coordinates
+    # to reveal the global position of the bounding boxes.
+    grid = np.arange(grid_size)
+    x_s, y_s = np.meshgrid(grid, grid)
+
+    x_offset = torch.FloatTensor(x_s).view(-1, 1)
+    y_offset = torch.FloatTensor(y_s).view(-1, 1)
+
+    if gpu:
+        x_offset = x_offset.cuda()
+        y_offset = y_offset.cuda()
+
+    x_y_offset = torch.cat((x_offset, y_offset), 1).repeat(1, num_anchors).view(-1, 2).unsqueeze(0)
+    predictions[:, :, :2] += x_y_offset  # offset the coordinates
+
+    # Log transform the height and width of the bounding box using the formula:
+    # new_dimension = anchor_dimension * exp(old_dimension)
+    anchors = torch.FloatTensor(anchors)
+
+    if gpu:
+        anchors = anchors.cuda()
+
+    anchors = anchors.repeat(grid_size * grid_size, 1).unsqueeze(0)
+    predictions[:, :, 2:4] = torch.exp(predictions[:, :, 2:4]) * anchors  # log transform the dimensions
+
+    # Now scale back everything to the size of the input image
+    predictions[:, :, :4] *= stride
+
+    return predictions
 
 
 # Test code
