@@ -126,7 +126,7 @@ def create_network(blocks):
             except:
                 end = 0
 
-            # Positive anotation
+            # Positive notation
             if start > 0:
                 start = start - index
             if end > 0:
@@ -163,7 +163,6 @@ def create_network(blocks):
         module_list.append(module)
         prev_filters = filters  # TODO: Improve the tracking of filters value
         output_filters.append(filters)
-
     return net_info, module_list
 
 
@@ -195,7 +194,7 @@ def transform_predictions(predictions, input_dim, anchors, num_classes, gpu=Fals
 
     predictions = predictions.view(batch_size, bbox_attrs * num_anchors, grid_size * grid_size)
     predictions = predictions.transpose(1, 2).contiguous()  # the dimensions 1 & 2 are swapped
-    predictions = predictions.view(batch_size, grid_size * grid_size * num_anchors * bbox_attrs)
+    predictions = predictions.view(batch_size, grid_size * grid_size * num_anchors, bbox_attrs)
 
     # Now apply sigmoid to the center coordinates, confidence score and the class scores
     predictions[:, :, 0] = torch.sigmoid(predictions[:, :, 0])  # x value
