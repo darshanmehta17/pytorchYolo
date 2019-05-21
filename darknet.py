@@ -109,6 +109,93 @@ class Darknet(nn.Module):
 
         return detections
 
+    def load_weights(self, weights_file):
+        # TODO: Documentation
+
+        # Open the weights file
+        fp = open(weights_file, "rb")
+
+        # The first 5 values are header information
+        # 1. Major version number
+        # 2. Minor Version Number
+        # 3. Subversion number
+        # 4,5. Images seen by the network (during training)
+        header = np.fromfile(fp, dtype = np.int32, count = 5)
+        self.header = torch.from_numpy(header)
+        self.seen = self.header[3]
+
+        # The rest of the values contain the weights in Float32 format
+        weights = np.fromfile(fp, dtype=np.float32)
+
+        ptr = 0  # to keep a track of how much has been read from the file
+        for index, block in enumerate(self._blocks[1:]):
+            layer_type = block[LPROP_TYPE]
+
+            # Since the weights are stored only for the convolution layer, we only process those layers.
+            if layer_type == LAYER_CONVOLUTIONAL:
+                layer = self._module_list[index]
+                convolution_layer = layer[0]  # first element in the Sequential Layer in the Convolution Layer
+
+                # We check and see if batch normalization layer exists. If it does, we load the weights and
+                # biases of the batch norm layer, and if not, we load the biases of the convolution layer
+                try:
+                    batch_normalize = int(block[LPROP_BATCH_NORMALIZE])
+                except:
+                    batch_normalize = 0
+
+                if batch_normalize:
+                    bn_layer = layer[1]  # get the batch norm layer if it exists
+                    num_bn_biases = bn_layer.bias.numel()  # get the number of biases of the batch norm layer
+
+                    # Load the weights
+                    bn_biases = torch.from_numpy(weights[ptr: (ptr + num_bn_biases)])
+                    ptr += num_bn_biases
+
+                    bn_weights = torch.from_numpy(weights[ptr: (ptr + num_bn_biases)])
+                    ptr += num_bn_biases
+
+                    bn_running_mean = torch.from_numpy(weights[ptr: (ptr + num_bn_biases)])
+                    ptr += num_bn_biases
+
+                    bn_running_var = torch.from_numpy(weights[ptr: (ptr + num_bn_biases)])
+                    ptr += num_bn_biases
+
+                    # Reshape the weights as required by the model implementation
+                    bn_biases = bn_biases.view_as(bn_layer.bias.data)
+                    bn_weights = bn_weights.view_as(bn_layer.weight.data)
+                    bn_running_mean = bn_running_mean.view_as(bn_layer.running_mean)
+                    bn_running_var = bn_running_var.view_as(bn_layer.running_var)
+
+                    # Copy the data into the model
+                    bn_layer.bias.data.copy_(bn_biases)
+                    bn_layer.weight.data.copy_(bn_weights)
+                    bn_layer.running_mean.copy_(bn_running_mean)
+                    bn_layer.running_var.copy_(bn_running_var)
+                else:
+                    num_conv_biases = convolution_layer.bias.numel()  # get the number of biases of the conv layer
+
+                    # Load the weights
+                    conv_biases = torch.from_numpy(weights[ptr: (ptr + num_conv_biases)])
+                    ptr = ptr + num_conv_biases
+
+                    # Reshape the loaded weights according to the dimensions of the model weights
+                    conv_biases = conv_biases.view_as(convolution_layer.bias.data)
+
+                    # Copy the data into the model
+                    convolution_layer.bias.data.copy_(conv_biases)
+
+                # Load the weights of the convolution layer
+                num_conv_weights = convolution_layer.weight.numel()  # get the number of weights
+                conv_weights = torch.from_numpy(weights[ptr: (ptr + num_conv_weights)])
+                ptr += num_conv_weights
+
+                # Reshape the weights as required and copy it into the model
+                conv_weights = conv_weights.view_as(convolution_layer.weight.data)
+                convolution_layer.weight.data.copy_(conv_weights)
+
+        fp.close()  # close the weights file
+
+
 
 def get_test_input(image_path, dim):
     """
@@ -128,6 +215,9 @@ def get_test_input(image_path, dim):
 
 if __name__ == '__main__':
     model = Darknet("./cfg/yolov3-voc.cfg")
+    model.load_weights("./weights/yolov3-voc_10000.weights")
     inp = get_test_input("./data/images_subset/2018_12_04_11_31_49.64.jpg", dim=416)
     pred = model(inp, False)
+    print(pred.size())
     print(pred)
+

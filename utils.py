@@ -236,4 +236,6 @@ def transform_predictions(predictions, input_dim, anchors, num_classes, gpu=Fals
 # Test code
 if __name__ == '__main__':
     blocks = parse_cfg("./cfg/yolov3-voc.cfg")
-    print(create_network(blocks))
+    network_info, module_list = create_network(blocks)
+    print(len(blocks), len(module_list))
+
