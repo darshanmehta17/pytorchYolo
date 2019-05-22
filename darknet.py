@@ -1,12 +1,13 @@
 import cv2
 import numpy as np
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from constants import *
 from torch.autograd import Variable
-from utils import parse_cfg, create_network, transform_predictions
+from utils import parse_cfg, create_network, transform_predictions, filter_transform_predictions
 
 
 class Darknet(nn.Module):
@@ -40,6 +41,9 @@ class Darknet(nn.Module):
         outputs = {}  # We cache the outputs for the route layer
         write = False
         detections = []
+
+        if gpu:
+            data_tensor = data_tensor.cuda()
 
         for index, module in enumerate(modules):
             layer_type = module[LPROP_TYPE]  # get the type of the layer
@@ -133,12 +137,12 @@ class Darknet(nn.Module):
         # Open the weights file
         fp = open(weights_file, "rb")
 
-        # The first 5 values are header information
+        # The first 5 values contain header information
         # 1. Major version number
         # 2. Minor Version Number
         # 3. Subversion number
         # 4,5. Images seen by the network (during training)
-        header = np.fromfile(fp, dtype = np.int32, count = 5)
+        header = np.fromfile(fp, dtype=np.int32, count=5)
         self.header = torch.from_numpy(header)
         self.seen = self.header[3]
 
@@ -214,7 +218,6 @@ class Darknet(nn.Module):
         fp.close()  # close the weights file
 
 
-
 def get_test_input(image_path, dim):
     """
     Reads image from file and prepares for input to the Darknet.
@@ -232,10 +235,14 @@ def get_test_input(image_path, dim):
 
 
 if __name__ == '__main__':
+    start = time.time()
     model = Darknet("./cfg/yolov3-voc.cfg")
     model.load_weights("./weights/yolov3-voc_10000.weights")
     inp = get_test_input("./data/images_subset/2018_12_04_11_31_49.64.jpg", dim=416)
-    pred = model(inp, False)
-    print(pred.size())
-    print(pred)
+    predictions = model(inp, False)
+    filter_transform_predictions(predictions, 20, 0, 0)
+    end = time.time()
+    print('Time taken:', end - start)
+    print(predictions.size())
+    print(predictions)
 

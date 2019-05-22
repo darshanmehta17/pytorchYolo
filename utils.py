@@ -233,9 +233,73 @@ def transform_predictions(predictions, input_dim, anchors, num_classes, gpu=Fals
     return predictions
 
 
+def filter_transform_predictions(predictions, num_classes, confidence_threshold=0, nms_thresold=0):
+    # TODO: Documentation
+
+    # Create a mask after applying threshold to confidence scores to identify confident bounding boxes
+    conf_mask = (predictions[:, :, 4] > confidence_threshold).float().unsqueeze(2)
+    predictions *= conf_mask  # suppress the invalid bounding boxes by making their confidence scores equal to zero
+
+    # Since it is easier to calculate IOU when the coordinates are in the form:
+    # <top-left corner x, top-left corner y, bottom-right corner x, bottom-right corner y>
+    # instead of the form:
+    # <center x, center y, height, width>
+    # So we transform the coordinates of the bounding boxes accordingly.
+    box_corners = predictions.new(predictions.shape)
+    box_corners[:, :, 0] = (predictions[:, :, 0] - predictions[:, :, 2] / 2)  # cx - (width) / 2
+    box_corners[:, :, 1] = (predictions[:, :, 1] - predictions[:, :, 3] / 2)  # cy - (height) / 2
+    box_corners[:, :, 2] = (predictions[:, :, 0] + predictions[:, :, 2] / 2)  # cx + (width) / 2
+    box_corners[:, :, 3] = (predictions[:, :, 1] + predictions[:, :, 3] / 2)  # cy + (height) / 2
+    predictions[:, :, :4] = box_corners[:, :, :4]  # copy the new coordinates back to the original predictions tensor
+
+    # Since the number of final predictions after filtering is different
+    # for each image in the batch, they need to processed individually.
+    batch_size = predictions.size(0)
+    write = False
+
+    for index in range(batch_size):
+        image_predictions = predictions[index]  # get all bounding boxes for this image
+
+        # Since the number of classes to be predicted could be quite high and we only
+        # care about the one with the highest class score, so we remove all the classes
+        # and instead just hold an index representing the class with the highest score
+        # and the score of the class at that index.
+        max_conf_class_score, max_conf_class_index = torch.max(image_predictions[:, 5: (5 + num_classes)], dim=1)
+        max_conf_class_score = max_conf_class_score.float().unsqueeze(1)
+        max_conf_class_index = max_conf_class_index.float().unsqueeze(1)
+        image_predictions = torch.cat((image_predictions[:, :5], max_conf_class_score, max_conf_class_index), 1)
+
+        # Next, we filter out all the boxes which had 0 in their confidence score
+        non_zero_indices = torch.nonzero(image_predictions[:, 4])  # 4 is the index holding the confidence score
+        if non_zero_indices.size(0) == 0:  # if there are no valid bounding boxes for this image, then skip
+            continue
+        # The number 7 below refers to the following 7 attributes:
+        # 4 coordinates + 1 confidence score + 1 class score + 1 class index
+        confident_image_predictions = image_predictions[non_zero_indices.squeeze(), :].view(-1, 7)
+
+        # Get a list of unique classes which have been predicted by the bounding boxes.
+        # The class indices lie in the last index of the bounding box.
+        img_classes = torch.unique(confident_image_predictions[:, -1])
+
+        # We now perform non-max suppression class-wise.
+        for class_ in img_classes:
+            # First we gather the boxes which predict the above class
+            image_predictions_class = confident_image_predictions[confident_image_predictions[:, -1] ==
+                                                                  class_].view(-1, 7)
+            # Next we sort the predictions in the descending order of the confidence score
+            sorted_indices = torch.sort(image_predictions_class[:, 4], descending=True)[1]
+            sorted_predictions = image_predictions_class[sorted_indices]
+            num_detections = sorted_predictions.size(0)  # get the number of detections of this class
+        pass
+
+
+
+
+
 # Test code
 if __name__ == '__main__':
     blocks = parse_cfg("./cfg/yolov3-voc.cfg")
     network_info, module_list = create_network(blocks)
     print(len(blocks), len(module_list))
+    print(module_list)
 
