@@ -110,8 +110,26 @@ class Darknet(nn.Module):
         return detections
 
     def load_weights(self, weights_file):
-        # TODO: Documentation
+        """
+        A utility function to load the weights from a file into the model.
 
+        The official weights file (*.weights) is a binary file which contains weights stored in a
+        serial fashion only for the convolution and the batch norm layers. The values are stored
+        as floats and have no metadata linking them to the layers. So we use the sizes of the weights
+        and the biases of each layer in the module list we generated using create_network to read
+        the data from the file.
+
+        The first five values contain header information such major version, minor version, number
+        of images seen, etc. The rest are the weights. If a convolution layer has a batch norm layer
+        following it, then the weights are present as follows:
+
+        <batch_norm biases> <batch_norm weights> <batch_norm running_mean> <batch_norm running_variance> <conv weights>
+
+        If not, then the weights are present as follows:
+        <conv biases> <conv weights>
+
+        :param weights_file: Path to the file containing the model weights.
+        """
         # Open the weights file
         fp = open(weights_file, "rb")
 
