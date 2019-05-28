@@ -12,9 +12,8 @@ from utils import parse_cfg, create_network, transform_predictions, filter_trans
 
 class Darknet(nn.Module):
     """
-    # TODO: Fill in documentation
+    # TODO: Fill documentation.
     """
-
     def __init__(self, cfgfile):
         """
         Initializes the Darknet network according to the configuration file provided.
@@ -240,7 +239,7 @@ if __name__ == '__main__':
     model.load_weights("./weights/yolov3-voc_10000.weights")
     inp = get_test_input("./data/images_subset/2018_12_04_11_31_49.64.jpg", dim=416)
     predictions = model(inp, False)
-    filter_transform_predictions(predictions, 20, 0, 0)
+    predictions = filter_transform_predictions(predictions, 20, 0.2, 0.5)
     end = time.time()
     print('Time taken:', end - start)
     print(predictions.size())

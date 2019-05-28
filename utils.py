@@ -233,8 +233,58 @@ def transform_predictions(predictions, input_dim, anchors, num_classes, gpu=Fals
     return predictions
 
 
-def filter_transform_predictions(predictions, num_classes, confidence_threshold=0, nms_thresold=0):
-    # TODO: Documentation
+def bbox_iou(box1, box2):
+    """
+    Calculates the accuracy of bounding box 1 with the bounding box 2. If there are more than one in
+    the box2 tensor, then it calculates the IOU with all the bounding boxes in box2.
+    :param box1: Tensor containing coordinates of box 1.
+    :param box2: Tensor containing coordinates of all the box for which we need to calculate IOU.
+    :return iou: Tensor containing the IOUs of every bounding box in box2 with box1.
+    """
+    # Get the coordinates of bounding boxes
+    b1_x1, b1_y1, b1_x2, b1_y2 = box1[:,0], box1[:,1], box1[:,2], box1[:,3]
+    b2_x1, b2_y1, b2_x2, b2_y2 = box2[:,0], box2[:,1], box2[:,2], box2[:,3]
+
+    # Get the coordinates of the intersection rectangle
+    inter_rect_x1 =  torch.max(b1_x1, b2_x1)
+    inter_rect_y1 =  torch.max(b1_y1, b2_y1)
+    inter_rect_x2 =  torch.min(b1_x2, b2_x2)
+    inter_rect_y2 =  torch.min(b1_y2, b2_y2)
+
+    # Intersection area
+    inter_area = torch.clamp(inter_rect_x2 - inter_rect_x1 + 1, min=0) * \
+                 torch.clamp(inter_rect_y2 - inter_rect_y1 + 1, min=0)
+
+    # Union Area
+    b1_area = (b1_x2 - b1_x1 + 1)*(b1_y2 - b1_y1 + 1)
+    b2_area = (b2_x2 - b2_x1 + 1)*(b2_y2 - b2_y1 + 1)
+
+    iou = inter_area / (b1_area + b2_area - inter_area)
+
+    return iou
+
+
+def filter_transform_predictions(predictions, num_classes, confidence_threshold=0, nms_threshold=0):
+    """
+    Filters existing prediction by applying confidence thresholding and non-max suppression to
+    bounding boxes. The functions also flattens all the predictions for all the images into a
+    single D x 8 tensor where D is the total number of true detections across all images and the
+    8 parameters for each bounding box are as follows:
+    1) Index of which image in the batch does the bounding box belong to.
+    2) Top-left X coordinate.
+    3) Top-left Y coordinate.
+    4) Bottom-right X coordinate.
+    5) Bottom-right Y coordinate.
+    6) Objectness (confidence) score.
+    7) Score of the class with the maximum confidence.
+    8) Index representing the class in 7th parameter.
+
+    :param predictions: Tensor consisting of all the bounding box predictions of all the images.
+    :param num_classes: Number of object classes possible.
+    :param confidence_threshold: The threshold value to filter boxes with low confidence.
+    :param nms_threshold: The threshold value for filtering bounding boxes based on IOU in the non-max suppression part.
+    :return output: Tensor of shape D x 8 containing true detections. Returns 0 if not true detections were found.
+    """
 
     # Create a mask after applying threshold to confidence scores to identify confident bounding boxes
     conf_mask = (predictions[:, :, 4] > confidence_threshold).float().unsqueeze(2)
@@ -257,8 +307,8 @@ def filter_transform_predictions(predictions, num_classes, confidence_threshold=
     batch_size = predictions.size(0)
     write = False
 
-    for index in range(batch_size):
-        image_predictions = predictions[index]  # get all bounding boxes for this image
+    for batch_index in range(batch_size):
+        image_predictions = predictions[batch_index]  # get all bounding boxes for this image
 
         # Since the number of classes to be predicted could be quite high and we only
         # care about the one with the highest class score, so we remove all the classes
@@ -290,10 +340,39 @@ def filter_transform_predictions(predictions, num_classes, confidence_threshold=
             sorted_indices = torch.sort(image_predictions_class[:, 4], descending=True)[1]
             sorted_predictions = image_predictions_class[sorted_indices]
             num_detections = sorted_predictions.size(0)  # get the number of detections of this class
-        pass
 
+            for idx in range(num_detections):
+                # We calculate the IOU of the current bounding box with all those present after this one
+                # and remove the ones with an IOU > nms_threshold
+                try:
+                    ious = bbox_iou(sorted_predictions[idx].unsqueeze(0), sorted_predictions[idx+1:])
+                except (ValueError, IndexError):
+                    break
 
+                # Zero out all the detections that have IoU > threshold
+                iou_mask = (ious < nms_threshold).float().unsqueeze(1)
+                sorted_predictions[idx+1:] *= iou_mask
 
+                # Remove the non-zero entries
+                non_zero_ind = torch.nonzero(sorted_predictions[:, 4]).squeeze()
+                sorted_predictions = sorted_predictions[non_zero_ind].view(-1, 7)
+
+            # Now since we flatten all the bounding boxes into a single array, we need to add a number
+            # to each bounding box denoting which image it belongs to.
+            batch_idx_tensor = sorted_predictions.new(sorted_predictions.size(0), 1).fill_(batch_index)
+            seq = batch_idx_tensor, sorted_predictions
+
+            if not write:
+                output = torch.cat(seq, 1)
+                write = True
+            else:
+                out = torch.cat(seq, 1)
+                output = torch.cat((output, out))
+    # TODO: Optimize the flow of output and nms calculation.
+    try:
+        return output
+    except:
+        return 0
 
 
 # Test code
