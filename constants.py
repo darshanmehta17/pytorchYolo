@@ -24,3 +24,7 @@ LPROP_FROM = 'from'
 LPROP_MASK = 'mask'
 LPROP_HEIGHT = 'height'
 LPROP_CLASSES = 'classes'
+
+# some constants for reading the data config file
+CONF_CLASSES = 'classes'
+CONF_NAMES = 'names'

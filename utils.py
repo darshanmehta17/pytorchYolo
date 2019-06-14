@@ -1,5 +1,6 @@
 from __future__ import division
 
+import cv2
 import numpy as np
 import torch
 import torch.nn as nn
@@ -375,9 +376,73 @@ def filter_transform_predictions(predictions, num_classes, confidence_threshold=
         return 0
 
 
+def load_classes(names_file):
+    """
+    Loads the names of the classes from the input file.
+    :param names_file: Path to the file containing the list of class names.
+    :return class_names: List of class names.
+    """
+    with open(names_file, 'r') as file_names:
+        class_names = file_names.readlines()
+    class_names = list(filter(len, map(str.strip, class_names)))
+    return class_names
+
+
+def parse_data_cfg(data_cfg_file):
+    """
+    Parses the data cfg file and returns a dictionary containing the configuration details.
+    :param data_cfg_file: Path to the data cfg file.
+    :return config: Dictionary containing the configuration specified in the input file.
+    """
+    with open(data_cfg_file, 'r') as file_names:
+        config_lines = file_names.readlines()
+    config_lines = list(filter(len, map(str.strip, config_lines)))
+
+    config = {}
+    for config_line in config_lines:
+        key, value = config_line.split('=')
+        config[key.rstrip()] = value.lstrip()
+
+    return config
+
+
+def image_to_letterbox(image, input_dim):
+    """
+    Resize the image without changing the aspect ratio. Pads the extra region with
+    (128, 128, 128) and gives it a letterbox effect.
+    :param image: The image which needs to be resized.
+    :param input_dim: Specifies the dimensions to which the image must be resized.
+    :return final_image: Final resized image.
+    """
+    old_w, old_h = image.shape[1], image.shape[0]
+    new_w, new_h = input_dim
+    scale_ratio = min(new_w / old_w, new_h / old_h)
+    final_w = int(old_w * scale_ratio)
+    final_h = int(old_h * scale_ratio)
+    resized_image = cv2.resize(image, (final_w, final_h), interpolation=cv2.INTER_CUBIC)
+
+    final_image = np.full((new_w, new_h, 3), 128)
+    w_start, h_start = (new_w - final_w) // 2, (new_h - final_h) // 2
+    final_image[h_start:h_start + final_h, w_start:w_start + final_w, :] = resized_image
+    return final_image
+
+
+def prepare_image(image, input_dim):
+    """
+    Prepares the image for input to the neural network. Resizes the image and converts to PyTorch Variable.
+    :param image: The image which needs to be prepared.
+    :param input_dim: Specifies the dimensions to which the image must be resized.
+    :return image: PyTorch Variable containing the final resized image.
+    """
+    image = image_to_letterbox(image, input_dim)
+    image = image[:, :, ::-1].transpose((2, 0, 1)).copy()
+    image = torch.from_numpy(image).float().div(255.0).unsqueeze(0)
+    return image
+
+
 # Test code
 if __name__ == '__main__':
-    blocks = parse_cfg("./cfg/yolov3-voc.cfg")
+    blocks = parse_cfg("./cfg/yolov3-amp.cfg")
     network_info, module_list = create_network(blocks)
     print(len(blocks), len(module_list))
     print(module_list)

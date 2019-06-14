@@ -24,6 +24,16 @@ class Darknet(nn.Module):
         self._net_info, self._module_list = create_network(self._blocks)  # create a network from the above components
         # TODO: Acquire height, width, batch_size and perform necessary tasks
 
+
+    def set_input_dimension(self, height):
+        """
+        Set the 'height' value of the network info which would be later used by the YOLO layer.
+        :param height: Specifies the height value
+        """
+        assert height > 32, "Height must be greater than 32."
+        self._net_info[LPROP_HEIGHT] = height
+
+
     def forward(self, data_tensor, gpu=False):
         """
         Implements the forward pass of the Darknet network on the input data_tensor
