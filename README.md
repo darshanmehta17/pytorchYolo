@@ -1,4 +1,3 @@
-(Time spent: 0.5+)
 # Introduction
 A custom implementation of the Darknet platform tailored for the 3G-AMP research project under the Applied Physics Laboratory at the Univeristy of Washington. This project can be used to perform inferencing on a pretrained YOLOv3 network.
 
@@ -27,26 +26,13 @@ For the training of the model, we could use either the [Darknet](https://github.
 1. The network architecture and the training configuration must be specified in the [cfg/yolov3-amp.cfg](cfg/yolov3-amp.cfg) file. This file would then be placed in the ```cfg``` folder under the Darknet project.
 2. Next, we create a file which would specify the path to the ```train.txt``` and the ```val.txt``` file which we prepared in the previous section. This file would also specify the number of classes and path to the ```classes.txt``` which we created in the previous section. A demo of this file can be seen in [cfg/amp.data](cfg/amp.data).
 3. Download pretrained convolution weights and place them in the root directory of the Darknet project. 
-```shell 
+```sh
 wget https://pjreddie.com/media/files/darknet53.conv.74
 ```
 4. Train the model using the command:
-```shell
+```sh
 ./darknet detector train cfg/amp.data cfg/yolov3-amp.cfg darknet53.conv.74
 ```
 
 # Detection using a pre-trained model
 
-
-
-#
-
-
-[x] Introduction
-[x] Libraries used
-[x] Generating dataset
-[x] Training the model
-[ ] How to run detection
-[ ] Future steps
-[ ] How to test mAP score
-[ ] How to create test script
