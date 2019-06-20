@@ -1,0 +1,3 @@
+names = /home/mitchell/AMP_YOLO_data/data/classesYOLO.txt
+cfg = /home/mitchell/AMP_DeepLearning/src/cfg/yolov3.cfg
+weights = /home/mitchell/AMP_YOLO_data/weights/yolov3.weights

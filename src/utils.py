@@ -394,13 +394,13 @@ def parse_data_cfg(data_cfg_file):
     :param data_cfg_file: Path to the data cfg file.
     :return config: Dictionary containing the configuration specified in the input file.
     """
+    
     with open(data_cfg_file, 'r') as file_names:
         config_lines = file_names.readlines()
-    config_lines = list(filter(len, map(str.strip, config_lines)))
-
     config = {}
     for config_line in config_lines:
         key, value = config_line.split('=')
+        
         config[key.rstrip()] = value.lstrip()
 
     return config

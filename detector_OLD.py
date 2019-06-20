@@ -27,8 +27,8 @@ def arg_parse():
     parser.add_argument("--batch_size", help="Batch size", default=1, type=int)
     parser.add_argument("--conf_thresh", help="Object Confidence to filter predictions", default=0.5, type=float)
     parser.add_argument("--nms_thresh", help="IOU threshold for non-max suppression", default=0.4, type=float)
-    parser.add_argument("--cfg", help=" Path to the config file", default="cfg/yolov3-amp.cfg", type=str)
-    parser.add_argument("--weights", help="Path to the weights file", default="weights/yolov3.weights", type=str)
+    parser.add_argument("--cfg", help=" Path to the config file", default="cfg/yolov3.cfg", type=str)
+    parser.add_argument("--weights", help="Path to the weights file", default="yolov3.weights", type=str)
     parser.add_argument("--img_size", help="Input resolution of the network. Increase to increase accuracy. "
                                            "Decrease to increase speed", default=416, type=int)
     parser.add_argument("--data_cfg", help="Path to the data cfg file", default="cfg/amp.data", type=str)
@@ -53,9 +53,11 @@ if __name__ == '__main__':
 
     start = 0
     gpu = torch.cuda.is_available()  # check and see if GPU processing is available
+    
 
     data_config = parse_data_cfg(data_cfg_file)  # parse the data config file
-    num_classes = int(data_config[CONF_CLASSES])
+    print(data_config)
+    num_classes = 80#int(data_config[CONF_CLASSES])
     classes = load_classes(data_config[CONF_NAMES])  # load the list of classes
 
     # Initialize the network and load the weights from the file

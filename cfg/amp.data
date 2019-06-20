@@ -1,5 +1,0 @@
-classes = 1
-train = /home/darshan/workspace/darknet/train_amp.txt
-valid = /home/darshan/workspace/darknet/val_amp.txt
-names = data/classes.txt
-backup = backup
