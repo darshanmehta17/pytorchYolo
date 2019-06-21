@@ -31,10 +31,25 @@ class Detector():
         self.img_size = args.img_size
         
         data_config = utils.parse_data_cfg(self.data_cfg_file)  # parse the data config file
-        self.classes = utils.load_classes(data_config[constants.CONF_NAMES].rstrip())  # load the list of classes
+        base_path = data_config[constants.BASE_PATH].rstrip()
+        if data_config[constants.CONF_NAMES][0] == '/':
+            names_path = data_config[constants.CONF_NAMES].rstrip()
+        else:
+            names_path = base_path + "/" +  data_config[constants.CONF_NAMES].rstrip()
+        if data_config[constants.CFG][0] == '/':
+            cfg_path = data_config[constants.CFG].rstrip()
+        else:
+            cfg_path = base_path + "/" + data_config[constants.CFG].rstrip()
+        if data_config[constants.CONF_WEIGHTS][0] == '/':
+            weights_path = data_config[constants.CONF_WEIGHTS].rstrip()
+        else:
+            weights_path = base_path + "/" + data_config[constants.CONF_WEIGHTS].rstrip()       
+            
+            
+        self.classes = utils.load_classes(names_path)  # load the list of classes
         self.num_classes = len(self.classes)
-        self.cfg_file = data_config["cfg"].rstrip()
-        self.weights_file = data_config["weights"].rstrip()
+        self.cfg_file = cfg_path.rstrip()
+        self.weights_file = weights_path.rstrip()
         
                 
         #Use GPU, if possible
@@ -274,7 +289,8 @@ class YoloLiveVideoStream(Detector):
             prediction = utils.filter_transform_predictions(prediction, self.num_classes, self.conf_thresh, self.nms_thresh)
     
         if type(prediction) == int:
-            #cv2.imshow("frame", orig_im)
+            cv2.imshow("frame", orig_im)
+            key = cv2.waitKey(1)
             return
         """
         if not self.write_pred:
@@ -314,7 +330,8 @@ class YoloLiveVideoStream(Detector):
         c2 = tuple(x[3:5].int())
         cls = int(x[-1])
         label = "{0}".format(self.classes[cls])
-        colors = pkl.load(open("pallete.pickle", "rb"))
+        dir_path = str(os.path.dirname(os.path.realpath(__file__)))
+        colors = pkl.load(open(dir_path+ "/pallete.pickle", "rb"))
         color = random.choice(colors)
         cv2.rectangle(img, c1, c2,color, 1)
         t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_PLAIN, 1 , 1)[0]

@@ -26,5 +26,7 @@ LPROP_HEIGHT = 'height'
 LPROP_CLASSES = 'classes'
 
 # some constants for reading the data config file
-CONF_CLASSES = 'classes'
+BASE_PATH = 'base_path'
 CONF_NAMES = 'names'
+CFG = 'cfg'
+CONF_WEIGHTS = 'weights'

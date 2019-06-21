@@ -399,6 +399,8 @@ def parse_data_cfg(data_cfg_file):
         config_lines = file_names.readlines()
     config = {}
     for config_line in config_lines:
+        if config_line[0] == "#":
+            continue
         key, value = config_line.split('=')
         
         config[key.rstrip()] = value.lstrip()
