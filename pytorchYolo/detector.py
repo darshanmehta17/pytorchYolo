@@ -274,7 +274,7 @@ class YoloLiveVideoStream(Detector):
             prediction = utils.filter_transform_predictions(prediction, self.num_classes, self.conf_thresh, self.nms_thresh)
     
         if type(prediction) == int:
-            cv2.imshow("frame", orig_im)
+            #cv2.imshow("frame", orig_im)
             return
         """
         if not self.write_pred:
@@ -343,7 +343,7 @@ class YoloVideoRun(YoloLiveVideoStream):
                 break
             
 class YoloImageStream(YoloLiveVideoStream):
-    def run(self, pause = 0.1):
+    def run(self, pause = 1.5):
         full_images = glob.glob(self.images + "/*")
         for frame in full_images: 
             img = cv2.imread(frame)
