@@ -14,5 +14,8 @@ Data and weights packaged seperatly.
 
 Under heavy construction, documentation and data will be given in time...
 
+## Installation
+Clone this repository, then run `pip3 install <path>` to install the package   
+
 
 
