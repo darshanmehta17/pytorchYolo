@@ -6,9 +6,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from constants import *
+from pytorchYolo.constants import *
 from torch.autograd import Variable
-from utils import parse_cfg, create_network, transform_predictions, filter_transform_predictions
+from pytorchYolo.utils import parse_cfg, create_network, transform_predictions, filter_transform_predictions
 
 
 class Darknet(nn.Module):

@@ -2,10 +2,10 @@ from time import time, sleep
 import torch
 from torch.autograd import Variable
 import cv2
-import utils
-import constants 
+from pytorchYolo import utils
+from pytorchYolo import constants 
 import os
-from darknet import Darknet
+from pytorchYolo import darknet
 import pickle as pkl
 import pandas as pd
 import random
@@ -93,7 +93,7 @@ class Detector():
     def create_model(self):
         # Initialize the network and load the weights from the file
         print('Loading the network...')
-        model = Darknet(self.cfg_file)
+        model = darknet.Darknet(self.cfg_file)
         model.load_weights(self.weights_file)
         model.set_input_dimension(self.img_size)
     

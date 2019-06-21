@@ -5,8 +5,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from constants import *
-from layers import EmptyLayer, DetectionLayer
+from pytorchYolo.constants import *
+from pytorchYolo.layers import EmptyLayer, DetectionLayer
 
 
 def parse_cfg(cfgfile):
