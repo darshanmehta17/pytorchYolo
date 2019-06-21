@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from pytorchYolo.detector import YoloImgRun, YoloVideoRun, YoloImageStream
 from pytorchYolo.argLoader import ArgLoader
 
@@ -10,6 +11,9 @@ if __name__ == '__main__':
     if run_style == 1:
         detector = YoloVideoRun(args)
     else:
-        detector = YoloImageStream(args)
+        if args.use_batches == 1:
+            detector = YoloImgRun(args)
+        else:
+            detector = YoloImageStream(args)
         
     detector.run()
