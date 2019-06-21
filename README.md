@@ -21,7 +21,7 @@ It's easiest if both this package and the data/weights folder ([example](https:/
 
 ### Data and weights
 Example data and weights can be [found here](https://drive.google.com/drive/folders/1VOEoOOTOrzb-vwieegfKXBICpTeckB2F). Download to same directory as pytorchYolo. The structure is:  
-*YOLO_Example_data  
+* YOLO_Example_data  
 	- classesYOLO.txt (list of trained classes)  
 	- imgs (directory with a few examples image)  
 	- weights (directory containing example weights)  
@@ -45,7 +45,7 @@ run_network.py offers a very simple run example for the above three mentioned op
 
 ## Examples: 
 Download the example YOLO set to the same base directory as this repo. That is:  
-*<base_path>
+* <base_path>
 	- pytorchYOLO  
 	- YOLO_ExampleData  
 
