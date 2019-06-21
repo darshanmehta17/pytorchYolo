@@ -242,17 +242,3 @@ def get_test_input(image_path, dim):
     img_ = torch.from_numpy(img_).float()  # Convert to float
     img_ = Variable(img_)  # Convert to Variable
     return img_
-
-
-if __name__ == '__main__':
-    start = time.time()
-    model = Darknet("./cfg/yolov3-voc.cfg")
-    model.load_weights("./weights/yolov3-voc_10000.weights")
-    inp = get_test_input("./data/images_subset/2018_12_04_11_31_49.64.jpg", dim=416)
-    predictions = model(inp, False)
-    predictions = filter_transform_predictions(predictions, 20, 0.2, 0.5)
-    end = time.time()
-    print('Time taken:', end - start)
-    print(predictions.size())
-    print(predictions)
-
