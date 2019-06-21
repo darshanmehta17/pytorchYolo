@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from time import time, sleep
 import torch
 from torch.autograd import Variable
@@ -92,7 +93,7 @@ class Detector():
         Return: 
             img: The final image containing the bounding boxes drawn.
         """
-        colors = pkl.load(open("pallete.pickle", "rb"))
+        colors = self._get_colors()
         class_color_pair = [(class_name, random.choice(colors)) 
             for class_name in self.classes]  # assign a color to each class
         c1 = tuple(x[1:3].int())  # top-left coordinates
@@ -148,6 +149,11 @@ class Detector():
         model.eval()
         
         self.model = model
+        
+    def _get_colors(self):
+        dir_path = str(os.path.dirname(os.path.realpath(__file__)))
+        return pkl.load(open(dir_path+ "/pallete.pickle", "rb"))
+        
         
     
 
@@ -238,7 +244,7 @@ class YoloImgRun(Detector):
             if self.gpu:
                 batch = batch.cuda()  # move the batch to the GPU
             with torch.no_grad():
-                prediction = self.model(Variable(batch), self.gpu)
+                prediction = self.model.forward(Variable(batch), self.gpu)
             prediction = utils.filter_transform_predictions(prediction, 
                         self.num_classes, self._conf_thresh, self._nms_thresh)
             end_time_batch = time()
@@ -355,8 +361,9 @@ class YoloLiveVideoStream(Detector):
         Returns:
             None
         """
+    
         orig_im = img
-        
+        start_img_time = time()
         img = utils.prepare_image(img, (self._img_size,self._img_size))
         im_dim = torch.FloatTensor((orig_im.shape[1], orig_im.shape[0])).repeat(1,2)
         
@@ -365,12 +372,16 @@ class YoloLiveVideoStream(Detector):
             img = img.cuda()
             
         with torch.no_grad():   
-            prediction = self.model(Variable(img), self.gpu)
-            prediction = utils.filter_transform_predictions(prediction, self.num_classes, self._conf_thresh, self._nms_thresh)
-    
+            prediction = self.model.forward(Variable(img), self.gpu)
+        prediction = utils.filter_transform_predictions(prediction, self.num_classes, self._conf_thresh, self._nms_thresh)
+        end_img_time = time()
         if type(prediction) == int:
             cv2.imshow("frame", orig_im)
             key = cv2.waitKey(1)
+            phrase = "img predicted in %f seconds" % (end_img_time - start_img_time)
+            print(phrase)
+            print("{0:20s} {1:s}".format("Objects Detected:", ""))
+            print("----------------------------------------------------------")
             return
             
         self.output = prediction
@@ -385,7 +396,13 @@ class YoloLiveVideoStream(Detector):
         list(map(lambda x: self.write(x, orig_im), self.output))
         
         cv2.imshow("frame", orig_im)
+        
         key = cv2.waitKey(1)
+        objs = [self.classes[int(x[-1])] for x in prediction]
+        phrase = "img predicted in %f seconds" % (end_img_time - start_img_time)
+        print(phrase)
+        print("{0:20s} {1:s}".format("Objects Detected:", " ".join(objs)))
+        print("----------------------------------------------------------")
         if key & 0xFF == ord('q'):
             return
         
@@ -407,8 +424,8 @@ class YoloLiveVideoStream(Detector):
         c2 = tuple(x[3:5].int())
         cls = int(x[-1])
         label = "{0}".format(self.classes[cls])
-        dir_path = str(os.path.dirname(os.path.realpath(__file__)))
-        colors = pkl.load(open(dir_path+ "/pallete.pickle", "rb"))
+
+        colors = self._get_colors()
         color = random.choice(colors)
         cv2.rectangle(img, c1, c2,color, 1)
         t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_PLAIN, 1 , 1)[0]
@@ -451,10 +468,12 @@ class YoloImageStream(YoloLiveVideoStream):
         """
         Main function. Find all images in a folder, send to YOLO network individually
         """
+        cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
         full_images = glob.glob(self._images + "/*")
         for frame in full_images: 
             img = cv2.imread(frame)
-            self.stream_img(img)   
+            self.stream_img(img)  
+            
             sleep(pause)
     
 
