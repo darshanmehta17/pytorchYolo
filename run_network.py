@@ -1,5 +1,5 @@
-from detector import YoloImgRun, YoloVideoRun, YoloImageStream
-from argLoader import ArgLoader
+from pytorchYolo.detector import YoloImgRun, YoloVideoRun, YoloImageStream
+from pytorchYolo.argLoader import ArgLoader
 
 
 if __name__ == '__main__':
