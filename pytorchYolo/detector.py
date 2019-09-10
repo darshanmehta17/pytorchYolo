@@ -10,6 +10,7 @@ from pytorchYolo import darknet
 import pickle as pkl
 import pandas as pd
 import random
+import numpy as np
 
 import glob
 
@@ -37,10 +38,13 @@ class Detector():
         self._output_dir = args.output
         self._img_size = args.img_size
         
+        self.save_predictions = args.save_predictions
+        print(1, args.save_predictions)
         self._parse_data_init()
                 
         #Use GPU, if possible
         self.gpu = torch.cuda.is_available()
+        #self.gpu = False
         
         self._create_model()
         
@@ -55,6 +59,8 @@ class Detector():
         self._end_time_det_loop = time()
         self._start_time_draw_box = time()
         self._end_time_draw_box = time()
+        
+        self.save_detection_path = "/home/mitchell/YOLO_data/full_trial_analysis/true_negaitves/detections/"
 
     
     def _parse_data_init(self):
@@ -98,6 +104,7 @@ class Detector():
             for class_name in self.classes]  # assign a color to each class
         c1 = tuple(x[1:3].int())  # top-left coordinates
         c2 = tuple(x[3:5].int())  # bottom-right coordinates
+        
         img = results[int(x[0])]  # get the image corresponding to the bounding box
         cls = int(x[-1])  # get the class index
         label = "{0}".format(class_color_pair[cls][0])
@@ -196,8 +203,7 @@ class YoloImgRun(Detector):
     
         # Load the images from the paths
         self._start_time_load_batch = time()
-        loaded_images = [cv2.imread(impath) for impath in imlist]
-    
+        loaded_images = [cv2.imread(impath) for impath in imlist if not cv2.imread(impath) is None]
         # Move images to PyTorch variables
         im_batches = list(map(
                 utils.prepare_image, loaded_images, 
@@ -245,7 +251,7 @@ class YoloImgRun(Detector):
                 batch = batch.cuda()  # move the batch to the GPU
             with torch.no_grad():
                 prediction = self.model.forward(Variable(batch), self.gpu)
-            prediction = utils.filter_transform_predictions(prediction, 
+            prediction, all_ious, full_class_scores = utils.filter_transform_predictions(prediction, 
                         self.num_classes, self._conf_thresh, self._nms_thresh)
             end_time_batch = time()
     
@@ -276,6 +282,7 @@ class YoloImgRun(Detector):
             for im_num, image in enumerate(imlist[idx * self._batch_size: min((idx + 1) * self._batch_size, len(imlist))]):
                 im_id = idx * self._batch_size + im_num
                 objs = [self.classes[int(x[-1])] for x in output if int(x[0]) == im_id]
+                
                 print("{0:20s} predicted in {1:6.3f} seconds".
                       format(image.split("/")[-1], 
                       (end_time_batch - start_time_batch) / self._batch_size))
@@ -312,6 +319,7 @@ class YoloImgRun(Detector):
                                       im_dim_list[i, 0])
             output[i, [2, 4]] = torch.clamp(output[i, [2, 4]], 0.0, 
                                       im_dim_list[i, 1])
+            
             
         self._end_time_det_loop = time()
     
@@ -351,7 +359,7 @@ class YoloLiveVideoStream(Detector):
     Child class of Detector. Class to run backend YOLO network from input 
     stream of images
     """     
-    def stream_img(self, img):
+    def stream_img(self, img, fname = ' '):
         """
         Main function. Accepts a cv_image and runs the back end YOLO network
         
@@ -361,8 +369,9 @@ class YoloLiveVideoStream(Detector):
         Returns:
             None
         """
-    
+        mean_iou = -1
         orig_im = img
+        img_shape = img.shape
         start_img_time = time()
         img = utils.prepare_image(img, (self._img_size,self._img_size))
         im_dim = torch.FloatTensor((orig_im.shape[1], orig_im.shape[0])).repeat(1,2)
@@ -373,7 +382,12 @@ class YoloLiveVideoStream(Detector):
             
         with torch.no_grad():   
             prediction = self.model.forward(Variable(img), self.gpu)
-        prediction = utils.filter_transform_predictions(prediction, self.num_classes, self._conf_thresh, self._nms_thresh)
+        prediction, all_ious, full_class_scores = utils.filter_transform_predictions(prediction, self.num_classes, self._conf_thresh, self._nms_thresh)
+        
+        #sm = torch.nn.Softmax()
+        #probs = sm(prediction)
+        #print(probs)
+        
         end_img_time = time()
         if type(prediction) == int:
             cv2.imshow("frame", orig_im)
@@ -382,8 +396,24 @@ class YoloLiveVideoStream(Detector):
             print(phrase)
             print("{0:20s} {1:s}".format("Objects Detected:", ""))
             print("----------------------------------------------------------")
-            return
-            
+            print(self.save_predictions)
+            if self.save_predictions:
+                f = open("//home/mitchell/YOLO_data/data/AMP_test_detectionLabels/" + fname.replace('.jpg', '.txt'), 'w+')
+                f.close()
+            return False, mean_iou
+        
+        total_iou = 0
+        total_count = 0
+        #print(all_ious)
+        for iou in all_ious:
+            #print(iou.item())
+            total_iou += iou
+            total_count += 1
+        if total_count > 0:
+            mean_iou = total_iou/total_count
+                    
+                
+        
         self.output = prediction
         im_dim = im_dim.repeat(self.output.size(0), 1)
         scaling_factor = torch.min(self._img_size/im_dim,1)[0].view(-1,1)
@@ -392,19 +422,51 @@ class YoloLiveVideoStream(Detector):
         self.output[:,[2,4]] -= (self._img_size - scaling_factor*im_dim[:,1].view(-1,1))/2
         
         self.output[:,1:5] /= scaling_factor
+    
 
         list(map(lambda x: self.write(x, orig_im), self.output))
-        
+        pose_list = []
+        print(self.save_predictions)
+        if self.save_predictions:
+            f = open(self.save_detection_path + fname.replace('.jpg', '.txt'), 'w+')
+            for x in self.output:
+                c1 = tuple(x[1:3])  # top-left coordinates
+                c2 = tuple(x[3:5])  # bottom-right coordinates
+            
+                
+                width_x = abs(c1[0].item() - c2[0].item())
+                width_y = abs(c1[1].item() - c2[1].item())
+                
+                center_x = c1[0].item() + width_x/2
+                center_y = c1[1].item() + width_y/2
+                pose_list.append([center_x/img_shape[1], center_y/img_shape[0], width_x/img_shape[1], width_y/img_shape[0]])
+                #output_write = str(0) + ' ' +  str(center_x/img_shape[0]) + ' ' + str(center_y/img_shape[1]) + ' ' +  str(width_x/img_shape[0]) + ' ' + str(width_y/img_shape[1]) 
+                #f.write(output_write + '\n')
+            #f.close()
+            sorted_output = sorted(pose_list)
+            for i, write_list in enumerate(sorted_output):
+                if i < len(full_class_scores):
+                    output_write = str(0) + ' ' + str(1.0) + ' ' + str(write_list[0]) + ' ' + str(write_list[1]) + ' ' +  str(write_list[2]) + ' ' + str(write_list[3]) 
+                else:
+                    output_write = str(0) + ' ' + str(1.0) + ' ' + str(write_list[0]) + ' ' + str(write_list[1]) + ' ' +  str(write_list[2]) + ' ' + str(write_list[3]) 
+                f.write(output_write + '\n')
+            #print(output_write)
+            f.close()        
         cv2.imshow("frame", orig_im)
+        cv2.waitKey(1)
         
-        key = cv2.waitKey(1)
+        
         objs = [self.classes[int(x[-1])] for x in prediction]
         phrase = "img predicted in %f seconds" % (end_img_time - start_img_time)
         print(phrase)
         print("{0:20s} {1:s}".format("Objects Detected:", " ".join(objs)))
         print("----------------------------------------------------------")
+        key = cv2.waitKey(1)
         if key & 0xFF == ord('q'):
-            return
+            return True, mean_iou
+        
+        return True, mean_iou
+        
         
         
     def write(self, x, img):
@@ -420,8 +482,9 @@ class YoloLiveVideoStream(Detector):
             img: The final image containing the bounding boxes drawn.
         """
         #print(type(img))
-        c1 = tuple(x[1:3].int())
-        c2 = tuple(x[3:5].int())
+        c1 = tuple(x[1:3].int())  # top-left coordinates
+        c2 = tuple(x[3:5].int())  # bottom-right coordinates
+        
         cls = int(x[-1])
         label = "{0}".format(self.classes[cls])
 
@@ -452,8 +515,6 @@ class YoloVideoRun(YoloLiveVideoStream):
         while cap.isOpened():   
             ret, frame = cap.read()
             if ret:    
-                
-                self.stream_img(frame)
                 print("FPS of the video is {:5.2f}".format( frames / (time() - start)))
          
             else:
@@ -464,17 +525,30 @@ class YoloImageStream(YoloLiveVideoStream):
     Child class of YoloLiveVideoStream. Class to stream a series of images one
     at a time to the YOLO network
     """ 
-    def run(self, pause = 1.5):
+    def run(self, pause = 0.1):
         """
         Main function. Find all images in a folder, send to YOLO network individually
         """
         cv2.namedWindow('frame', cv2.WINDOW_NORMAL)
-        full_images = glob.glob(self._images + "/*")
+        full_images = sorted(glob.glob(self._images + "/*"))
+        count = 0
+        total_iou = 0
         for frame in full_images: 
             img = cv2.imread(frame)
-            self.stream_img(img)  
+            print(frame)
+            if img is None:
+                continue
+            
+            detection, mean_iou = self.stream_img(img, frame.split('/')[-1])  
+            if mean_iou != -1:
+                total_iou+=mean_iou
+                count += 1
+                #print(mean_iou)
+                
+                
             
             sleep(pause)
+        print("Mean iou:", total_iou/count)
     
 
     

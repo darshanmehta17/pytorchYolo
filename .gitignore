@@ -3,3 +3,5 @@ data/*
 .idea/*
 weights/*
 *.egg-info
+old_helper/*
+cfg/*

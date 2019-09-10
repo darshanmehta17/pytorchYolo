@@ -201,6 +201,7 @@ def transform_predictions(predictions, input_dim, anchors, num_classes, gpu=Fals
     predictions[:, :, 0] = torch.sigmoid(predictions[:, :, 0])  # x value
     predictions[:, :, 1] = torch.sigmoid(predictions[:, :, 1])  # y value
     predictions[:, :, 4] = torch.sigmoid(predictions[:, :, 4])  # confidence score
+    
     predictions[:, :, 5:(5 + num_classes)] = torch.sigmoid(predictions[:, :, 5:(5 + num_classes)])  # class scores
 
     # Create and add the grid offsets to each of the center coordinates
@@ -306,9 +307,14 @@ def filter_transform_predictions(predictions, num_classes, confidence_threshold=
     # Since the number of final predictions after filtering is different
     # for each image in the batch, they need to processed individually.
     batch_size = predictions.size(0)
+    
     write = False
-
+    full_ious = []
+    full_class_scores = []
+    
+    count = 0
     for batch_index in range(batch_size):
+        
         image_predictions = predictions[batch_index]  # get all bounding boxes for this image
 
         # Since the number of classes to be predicted could be quite high and we only
@@ -318,11 +324,14 @@ def filter_transform_predictions(predictions, num_classes, confidence_threshold=
         max_conf_class_score, max_conf_class_index = torch.max(image_predictions[:, 5: (5 + num_classes)], dim=1)
         max_conf_class_score = max_conf_class_score.float().unsqueeze(1)
         max_conf_class_index = max_conf_class_index.float().unsqueeze(1)
+        
         image_predictions = torch.cat((image_predictions[:, :5], max_conf_class_score, max_conf_class_index), 1)
 
         # Next, we filter out all the boxes which had 0 in their confidence score
         non_zero_indices = torch.nonzero(image_predictions[:, 4])  # 4 is the index holding the confidence score
+        
         if non_zero_indices.size(0) == 0:  # if there are no valid bounding boxes for this image, then skip
+            #full_ious.append(0)
             continue
         # The number 7 below refers to the following 7 attributes:
         # 4 coordinates + 1 confidence score + 1 class score + 1 class index
@@ -332,6 +341,7 @@ def filter_transform_predictions(predictions, num_classes, confidence_threshold=
         # The class indices lie in the last index of the bounding box.
         img_classes = torch.unique(confident_image_predictions[:, -1])
 
+        
         # We now perform non-max suppression class-wise.
         for class_ in img_classes:
             # First we gather the boxes which predict the above class
@@ -341,19 +351,24 @@ def filter_transform_predictions(predictions, num_classes, confidence_threshold=
             sorted_indices = torch.sort(image_predictions_class[:, 4], descending=True)[1]
             sorted_predictions = image_predictions_class[sorted_indices]
             num_detections = sorted_predictions.size(0)  # get the number of detections of this class
-
+            if num_detections == 0:
+                break
             for idx in range(num_detections):
                 # We calculate the IOU of the current bounding box with all those present after this one
                 # and remove the ones with an IOU > nms_threshold
+                #print(confident_image_predictions[idx][5])
                 try:
                     ious = bbox_iou(sorted_predictions[idx].unsqueeze(0), sorted_predictions[idx+1:])
+                    
+                    #full_ious.append(ious)
                 except (ValueError, IndexError):
+                    #full_ious.append(0)
                     break
 
                 # Zero out all the detections that have IoU > threshold
                 iou_mask = (ious < nms_threshold).float().unsqueeze(1)
+                
                 sorted_predictions[idx+1:] *= iou_mask
-
                 # Remove the non-zero entries
                 non_zero_ind = torch.nonzero(sorted_predictions[:, 4]).squeeze()
                 sorted_predictions = sorted_predictions[non_zero_ind].view(-1, 7)
@@ -362,6 +377,16 @@ def filter_transform_predictions(predictions, num_classes, confidence_threshold=
             # to each bounding box denoting which image it belongs to.
             batch_idx_tensor = sorted_predictions.new(sorted_predictions.size(0), 1).fill_(batch_index)
             seq = batch_idx_tensor, sorted_predictions
+            #print('bidx', batch_idx_tensor)
+            
+            
+            for i in range(idx):
+               full_class_scores.append(sorted_predictions[i][5])
+            
+            if len(ious) > 0:
+                for idx in batch_idx_tensor:
+                    #print(ious[int(idx.item())])
+                    full_ious.append(ious[int(idx.item())].item())
 
             if not write:
                 output = torch.cat(seq, 1)
@@ -371,9 +396,10 @@ def filter_transform_predictions(predictions, num_classes, confidence_threshold=
                 output = torch.cat((output, out))
     # TODO: Optimize the flow of output and nms calculation.
     try:
-        return output
+        #print(full_ious)
+        return output, full_ious, full_class_scores
     except:
-        return 0
+        return 0, [], []
 
 
 def load_classes(names_file):
